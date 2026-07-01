@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Transacciones - Control de Rifa{% endblock %}
+{% block content %}
+
+<section class="resumen">
+    <div class="tarjeta">
+        <h3>Total Recaudado</h3>
+        <p class="monto">${{ "%.2f"|format(total_recaudado) }}</p>
+    </div>
+    {% for modalidad, total in total_por_modalidad.items() %}
+    <div class="tarjeta">
+        <h3>{{ modalidad }}</h3>
+        <p class="monto">${{ "%.2f"|format(total) }}</p>
+    </div>
+    {% endfor %}
+    <div class="tarjeta {% if saldo_total > 0 %}alerta{% endif %}">
+        <h3>Saldo Pendiente Total</h3>
+        <p class="monto">${{ "%.2f"|format(saldo_total) }}</p>
+    </div>
+</section>
+
+<section>
+    <h2>Total Acumulado por Tickera</h2>
+    <table class="tabla-resumen">
+        <thead>
+            <tr><th>Tickera Numero</th><th>Total Acumulado</th></tr>
+        </thead>
+        <tbody>
+            {% for tickera, total in total_por_tickera %}
+            <tr><td>{{ tickera }}</td><td>${{ "%.2f"|format(total) }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Transacciones</h2>
+    <table class="tabla-principal">
+        <thead>
+            <tr>
+                <th>Tickera</th>
+                <th>Ticket Inicio</th>
+                <th>Ticket Fin</th>
+                <th>Servidor</th>
+                <th>Fecha</th>
+                <th>Modalidad</th>
+                <th>Num. Confirmacion</th>
+                <th>Total Esperado</th>
+                <th>Monto Pagado</th>
+                <th>Saldo</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fila in filas %}
+            <tr class="{% if fila.saldo > 0 %}fila-saldo{% endif %}">
+                <td>{{ fila.tickera_numero }}</td>
+                <td>{{ fila.ticket_inicio }}</td>
+                <td>{{ fila.ticket_fin }}</td>
+                <td>{{ fila.nombre_servidor }}</td>
+                <td>{{ fila.fecha_transaccion }}</td>
+                <td>{{ fila.modalidad_pago }}</td>
+                <td>{{ fila.numero_confirmacion or "-" }}</td>
+                <td>${{ "%.2f"|format(fila.total_esperado) }}</td>
+                <td>${{ "%.2f"|format(fila.monto_pagado) }}</td>
+                <td>${{ "%.2f"|format(fila.saldo) }}</td>
+                <td class="acciones">
+                    <a href="{{ url_for('editar_transaccion', id=fila.id) }}">Editar</a>
+                    <form method="post" action="{{ url_for('eliminar_transaccion', id=fila.id) }}" onsubmit="return confirm('Eliminar esta transaccion?');">
+                        <button type="submit">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="11">No hay transacciones registradas todavia.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+{% endblock %}

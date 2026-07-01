@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} - Control de Rifa{% endblock %}
+{% block content %}
+
+<h2>{{ titulo }}</h2>
+
+<form method="post" class="formulario">
+    <fieldset class="grupo-tickera">
+        <legend>Tickera</legend>
+
+        <label>Tickera Numero
+            <select id="tickera_numero" name="tickera_numero" required>
+                <option value="">-- Seleccione --</option>
+                {% for tk in tickeras %}
+                <option value="{{ tk.numero }}" {% if datos.tickera_numero == tk.numero %}selected{% endif %}>
+                    Tickera {{ tk.numero }} ({{ tk.ticket_inicio }}-{{ tk.ticket_fin }})
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label>o seleccione por Ticket Inicio
+            <select id="ticket_inicio_select">
+                <option value="">-- Seleccione --</option>
+                {% for tk in tickeras %}
+                <option value="{{ tk.numero }}" {% if datos.tickera_numero == tk.numero %}selected{% endif %}>
+                    {{ tk.ticket_inicio }}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <p class="ayuda" id="rango_preview">
+            {% if datos.ticket_inicio and datos.ticket_fin %}
+                Rango de tickets: {{ datos.ticket_inicio }} - {{ datos.ticket_fin }}
+            {% else %}
+                Rango de tickets: --
+            {% endif %}
+        </p>
+    </fieldset>
+
+    <label>Nombre Servidor
+        <input type="text" name="nombre_servidor" list="lista_servidores" value="{{ datos.nombre_servidor or '' }}" required>
+        <datalist id="lista_servidores">
+            {% for s in servidores %}
+            <option value="{{ s }}">
+            {% endfor %}
+        </datalist>
+    </label>
+
+    <label>Fecha de Transaccion
+        <input type="date" name="fecha_transaccion" value="{{ datos.fecha_transaccion or '' }}" required>
+    </label>
+
+    <label>Modalidad de Pago
+        <select name="modalidad_pago" id="modalidad_pago" required>
+            <option value="">-- Seleccione --</option>
+            {% for m in modalidades %}
+            <option value="{{ m }}" {% if datos.modalidad_pago == m %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+        </select>
+    </label>
+
+    <label id="campo_confirmacion">Numero de Confirmacion (requerido para SQUARE y ZELLE)
+        <input type="text" name="numero_confirmacion" value="{{ datos.numero_confirmacion or '' }}">
+    </label>
+
+    <label>Monto Pagado
+        <input type="number" step="0.01" name="monto_pagado" value="{{ datos.monto_pagado if datos.monto_pagado is not none else 0 }}" required>
+    </label>
+
+    <p class="ayuda">Precio por Tickera vigente: ${{ "%.2f"|format(precio_tickera) }}</p>
+
+    <button type="submit">Guardar</button>
+    <a class="boton-secundario" href="{{ url_for('index') }}">Cancelar</a>
+</form>
+
+<script>
+    const tickeraSelect = document.getElementById('tickera_numero');
+    const ticketInicioSelect = document.getElementById('ticket_inicio_select');
+    const rangoPreview = document.getElementById('rango_preview');
+    const TICKET_BASE = {{ 1000 }};
+    const TICKET_SIZE = {{ 10 }};
+
+    function actualizarPreview(numero) {
+        if (!numero) {
+            rangoPreview.textContent = 'Rango de tickets: --';
+            return;
+        }
+        const inicio = TICKET_BASE + (numero - 1) * TICKET_SIZE;
+        const fin = inicio + TICKET_SIZE - 1;
+        rangoPreview.textContent = 'Rango de tickets: ' + inicio + ' - ' + fin;
+    }
+
+    tickeraSelect.addEventListener('change', () => {
+        ticketInicioSelect.value = tickeraSelect.value;
+        actualizarPreview(parseInt(tickeraSelect.value, 10));
+    });
+    ticketInicioSelect.addEventListener('change', () => {
+        tickeraSelect.value = ticketInicioSelect.value;
+        actualizarPreview(parseInt(ticketInicioSelect.value, 10));
+    });
+
+    const select = document.getElementById('modalidad_pago');
+    const campoConfirmacion = document.getElementById('campo_confirmacion');
+    function actualizarConfirmacion() {
+        if (select.value === 'SQUARE' || select.value === 'ZELLE') {
+            campoConfirmacion.style.display = '';
+        } else {
+            campoConfirmacion.style.display = 'none';
+        }
+    }
+    select.addEventListener('change', actualizarConfirmacion);
+    actualizarConfirmacion();
+</script>
+
+{% endblock %}

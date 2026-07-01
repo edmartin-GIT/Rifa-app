@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Configuracion - Control de Rifa{% endblock %}
+{% block content %}
+
+<h2>Configuracion</h2>
+
+<form method="post" class="formulario">
+    <label>Precio por Tickera (USD)
+        <input type="number" step="0.01" name="precio_tickera" value="{{ precio_tickera }}" required>
+    </label>
+    <p class="ayuda">Este es el precio fijo por tickera completa (no se venden tickets individuales). Aplica a las nuevas transacciones que se registren a partir de ahora; las transacciones existentes conservan el precio con el que fueron creadas.</p>
+    <button type="submit">Guardar</button>
+</form>
+
+{% endblock %}
