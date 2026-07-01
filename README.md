@@ -22,38 +22,77 @@ La aplicacion queda disponible en `http://localhost:5000`. La base de datos SQLi
 - `db.py` - acceso a la base de datos SQLite y configuracion (precio por tickera)
 - `templates/` - vistas HTML
 - `static/` - CSS
-- `passenger_wsgi.py` - punto de entrada para hosting compartido con Passenger (cPanel)
+- `passenger_wsgi.py` - punto de entrada alternativo para hosting compartido con Passenger (no aplica a hosting solo-web/cloud sin Python; se deja por si en el futuro se usa cPanel con soporte Python)
+- `deploy/rifa-app.service` - unidad systemd para correr la app con Gunicorn en el VPS
+- `deploy/nginx-rifa-app.conf` - configuracion de ejemplo de Nginx como proxy reverso
+- `requirements-vps.txt` - dependencias de produccion (incluye Gunicorn, solo funciona en Linux)
 
-## Despliegue en hosting compartido tipo cPanel (Passenger)
+## Despliegue en VPS (curiositylogic.cloud)
 
-La mayoria de los proveedores de hosting compartido (Namecheap, Hostinger, GoDaddy, etc.) ofrecen "Setup Python App" en cPanel, que usa Phusion Passenger para correr aplicaciones WSGI. Pasos generales:
+CuriosityLogic.cloud confirmo que el hosting web/cloud normal no soporta apps Python y que se necesita el VPS asociado a la cuenta. Pasos para desplegar ahi via SSH:
 
-1. En cPanel, ve a **Setup Python App** y crea una nueva aplicacion:
-   - Python version: 3.9 o superior
-   - Application root: la carpeta donde subiras este proyecto (ej. `rifa-app`)
-   - Application URL: el subdominio o subcarpeta donde quieres que viva (ej. `rifa.curiositylogic.cloud` o `curiositylogic.cloud/rifa`)
-   - Application startup file: `passenger_wsgi.py`
-   - Application Entry point: `application`
-2. Sube todos los archivos del proyecto a la carpeta de application root (via Git, FTP, o el File Manager de cPanel).
-3. Activa el entorno virtual que cPanel genera y corre:
+1. **Conectarse por SSH** al VPS (tu proveedor te dara el usuario, IP y clave/contrasena).
+
+2. **Instalar Python y Nginx** (Ubuntu/Debian):
    ```bash
-   pip install -r requirements.txt
+   sudo apt update
+   sudo apt install -y python3 python3-venv python3-pip nginx git
    ```
-4. Reinicia la aplicacion desde el panel de "Setup Python App".
-5. La primera vez que arranca, `db.py` crea automaticamente `rifa.db` con las tablas necesarias.
 
-**Importante sobre la base de datos:** SQLite guarda todo en el archivo `rifa.db` dentro de la carpeta de la app. Asegurate de que esa carpeta tenga permisos de escritura para el usuario de la aplicacion, y de incluir `rifa.db` en tus respaldos periodicos (no esta en el control de versiones por diseno).
+3. **Clonar el repositorio** en el servidor:
+   ```bash
+   sudo mkdir -p /var/www/rifa-app
+   sudo chown $USER:$USER /var/www/rifa-app
+   git clone https://github.com/edmartin-GIT/Rifa-app.git /var/www/rifa-app
+   cd /var/www/rifa-app
+   ```
 
-## Despliegue en VPS (alternativa)
+4. **Crear entorno virtual e instalar dependencias** (incluye Gunicorn):
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements-vps.txt
+   deactivate
+   ```
 
-Si en cambio tienes acceso SSH a un servidor (VPS), se recomienda correr con Gunicorn detras de Nginx:
+5. **Configurar el servicio systemd** para que la app corra siempre en segundo plano y arranque con el servidor:
+   ```bash
+   sudo cp deploy/rifa-app.service /etc/systemd/system/rifa-app.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now rifa-app
+   sudo systemctl status rifa-app
+   ```
+   Si el usuario del servicio (`www-data` en el archivo de ejemplo) no tiene permisos de escritura en `/var/www/rifa-app` (necesarios para crear `rifa.db`), ajusta el dueno de la carpeta:
+   ```bash
+   sudo chown -R www-data:www-data /var/www/rifa-app
+   ```
 
-```bash
-pip install -r requirements.txt gunicorn
-gunicorn -w 2 -b 127.0.0.1:8000 app:app
-```
+6. **Configurar Nginx** como proxy reverso hacia Gunicorn:
+   ```bash
+   sudo cp deploy/nginx-rifa-app.conf /etc/nginx/sites-available/rifa-app
+   sudo ln -s /etc/nginx/sites-available/rifa-app /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+   Antes de esto, crea en tu proveedor de DNS un registro **A** para el subdominio (ej. `rifa.curiositylogic.cloud`) apuntando a la IP del VPS.
 
-y configurar Nginx como proxy reverso hacia `127.0.0.1:8000`.
+7. **Activar HTTPS** con Let's Encrypt:
+   ```bash
+   sudo apt install -y certbot python3-certbot-nginx
+   sudo certbot --nginx -d rifa.curiositylogic.cloud
+   ```
+
+8. La app quedara disponible en `https://rifa.curiositylogic.cloud`. Para futuras actualizaciones de codigo:
+   ```bash
+   cd /var/www/rifa-app
+   git pull
+   source .venv/bin/activate
+   pip install -r requirements-vps.txt
+   deactivate
+   sudo systemctl restart rifa-app
+   ```
+
+**Importante sobre la base de datos:** SQLite guarda todo en el archivo `rifa.db` dentro de la carpeta de la app (no esta en el control de versiones por diseno). Configura respaldos periodicos de ese archivo, por ejemplo con un cron job que lo copie a otro directorio o a almacenamiento externo.
 
 ## Configuracion
 

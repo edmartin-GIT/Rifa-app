@@ -1,0 +1,16 @@
+[Unit]
+Description=Control de Rifa - Flask app (Gunicorn)
+After=network.target
+
+[Service]
+# Ajusta el usuario y las rutas segun donde despliegues la app en el VPS
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/rifa-app
+Environment="PATH=/var/www/rifa-app/.venv/bin"
+ExecStart=/var/www/rifa-app/.venv/bin/gunicorn -w 2 -b 127.0.0.1:8000 app:app
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
