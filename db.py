@@ -24,7 +24,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS transacciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tickera_numero INTEGER NOT NULL,
+            tickera_numero INTEGER NOT NULL UNIQUE,
             ticket_inicio INTEGER NOT NULL,
             ticket_fin INTEGER NOT NULL,
             nombre_servidor TEXT NOT NULL,

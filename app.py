@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import date
 from io import BytesIO
 
@@ -32,11 +33,35 @@ def ticket_inicio_a_tickera(ticket_inicio):
     return None
 
 
-def lista_tickeras():
+def lista_tickeras(excluir_usadas=True, incluir_ademas=None):
+    conn = get_conn()
+    usadas = {r["tickera_numero"] for r in conn.execute("SELECT tickera_numero FROM transacciones")}
+    conn.close()
+
+    if not excluir_usadas:
+        usadas = set()
+    if incluir_ademas is not None:
+        usadas.discard(incluir_ademas)
+
     return [
         {"numero": n, "ticket_inicio": tickera_a_rango(n)[0], "ticket_fin": tickera_a_rango(n)[1]}
         for n in range(1, NUM_TICKERAS + 1)
+        if n not in usadas
     ]
+
+
+def tickera_ya_vendida(numero, excluir_id=None):
+    conn = get_conn()
+    if excluir_id is None:
+        row = conn.execute(
+            "SELECT 1 FROM transacciones WHERE tickera_numero = ?", (numero,)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT 1 FROM transacciones WHERE tickera_numero = ? AND id != ?", (numero, excluir_id)
+        ).fetchone()
+    conn.close()
+    return row is not None
 
 
 def calcular_totales(row):
@@ -64,7 +89,7 @@ def obtener_servidores_conocidos():
     return [r["nombre_servidor"] for r in rows]
 
 
-def validar_formulario(form):
+def validar_formulario(form, excluir_id=None):
     errores = []
     nombre_servidor = form.get("nombre_servidor", "").strip()
     fecha_transaccion = form.get("fecha_transaccion", "").strip()
@@ -76,6 +101,9 @@ def validar_formulario(form):
         tickera_numero = int(form.get("tickera_numero", ""))
         if not (1 <= tickera_numero <= NUM_TICKERAS):
             errores.append(f"Tickera Numero debe estar entre 1 y {NUM_TICKERAS}.")
+            tickera_numero = None
+        elif tickera_ya_vendida(tickera_numero, excluir_id=excluir_id):
+            errores.append(f"La Tickera {tickera_numero} ya fue vendida. Cada tickera es unica.")
             tickera_numero = None
     except ValueError:
         errores.append("Debe seleccionar una Tickera Numero valida.")
@@ -161,29 +189,34 @@ def nueva_transaccion():
             return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Nueva Transaccion", precio_tickera=precio_tickera, tickeras=lista_tickeras(), servidores=obtener_servidores_conocidos())
 
         conn = get_conn()
-        conn.execute(
-            """INSERT INTO transacciones
-               (tickera_numero, ticket_inicio, ticket_fin, nombre_servidor, fecha_transaccion,
-                modalidad_pago, numero_confirmacion, precio_tickera, monto_pagado)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                datos["tickera_numero"],
-                datos["ticket_inicio"],
-                datos["ticket_fin"],
-                datos["nombre_servidor"],
-                datos["fecha_transaccion"],
-                datos["modalidad_pago"],
-                datos["numero_confirmacion"],
-                precio_tickera,
-                datos["monto_pagado"],
-            ),
-        )
-        conn.commit()
+        try:
+            conn.execute(
+                """INSERT INTO transacciones
+                   (tickera_numero, ticket_inicio, ticket_fin, nombre_servidor, fecha_transaccion,
+                    modalidad_pago, numero_confirmacion, precio_tickera, monto_pagado)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    datos["tickera_numero"],
+                    datos["ticket_inicio"],
+                    datos["ticket_fin"],
+                    datos["nombre_servidor"],
+                    datos["fecha_transaccion"],
+                    datos["modalidad_pago"],
+                    datos["numero_confirmacion"],
+                    precio_tickera,
+                    datos["monto_pagado"],
+                ),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.close()
+            flash(f"La Tickera {datos['tickera_numero']} ya fue vendida. Cada tickera es unica.", "error")
+            return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Nueva Transaccion", precio_tickera=precio_tickera, tickeras=lista_tickeras(), servidores=obtener_servidores_conocidos())
         conn.close()
         flash("Transaccion registrada correctamente.", "success")
         return redirect(url_for("index"))
 
-    datos = {"fecha_transaccion": date.today().isoformat()}
+    datos = {"fecha_transaccion": date.today().isoformat(), "monto_pagado": precio_tickera}
     return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Nueva Transaccion", precio_tickera=precio_tickera, tickeras=lista_tickeras(), servidores=obtener_servidores_conocidos())
 
 
@@ -199,12 +232,12 @@ def editar_transaccion(id):
     precio_tickera = transaccion["precio_tickera"]
 
     if request.method == "POST":
-        errores, datos = validar_formulario(request.form)
+        errores, datos = validar_formulario(request.form, excluir_id=id)
         if errores:
             for e in errores:
                 flash(e, "error")
             datos["id"] = id
-            return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Editar Transaccion", precio_tickera=precio_tickera, editar=True, tickeras=lista_tickeras(), servidores=obtener_servidores_conocidos())
+            return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Editar Transaccion", precio_tickera=precio_tickera, editar=True, tickeras=lista_tickeras(incluir_ademas=transaccion["tickera_numero"]), servidores=obtener_servidores_conocidos())
 
         conn = get_conn()
         conn.execute(
@@ -230,7 +263,7 @@ def editar_transaccion(id):
         return redirect(url_for("index"))
 
     datos = dict(transaccion)
-    return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Editar Transaccion", precio_tickera=precio_tickera, editar=True, tickeras=lista_tickeras(), servidores=obtener_servidores_conocidos())
+    return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Editar Transaccion", precio_tickera=precio_tickera, editar=True, tickeras=lista_tickeras(incluir_ademas=transaccion["tickera_numero"]), servidores=obtener_servidores_conocidos())
 
 
 @app.route("/eliminar/<int:id>", methods=["POST"])
