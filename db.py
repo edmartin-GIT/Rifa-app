@@ -1,7 +1,9 @@
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "rifa.db"
+DB_PATH = Path(os.environ.get("RIFA_DB_PATH", Path(__file__).parent / "rifa.db"))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def get_conn():

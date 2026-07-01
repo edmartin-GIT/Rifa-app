@@ -19,80 +19,75 @@ La aplicacion queda disponible en `http://localhost:5000`. La base de datos SQLi
 ## Estructura
 
 - `app.py` - rutas y logica de la aplicacion (Flask)
-- `db.py` - acceso a la base de datos SQLite y configuracion (precio por tickera)
+- `db.py` - acceso a la base de datos SQLite y configuracion (precio por tickera). Respeta la variable de entorno `RIFA_DB_PATH` para ubicar el archivo de base de datos (usado en Docker para apuntar a un volumen persistente).
 - `templates/` - vistas HTML
 - `static/` - CSS
-- `passenger_wsgi.py` - punto de entrada alternativo para hosting compartido con Passenger (no aplica a hosting solo-web/cloud sin Python; se deja por si en el futuro se usa cPanel con soporte Python)
-- `deploy/rifa-app.service` - unidad systemd para correr la app con Gunicorn en el VPS
-- `deploy/nginx-rifa-app.conf` - configuracion de ejemplo de Nginx como proxy reverso
+- `Dockerfile` - imagen de produccion (Gunicorn) usada en el despliegue con Docker + Traefik
+- `passenger_wsgi.py` - punto de entrada alternativo para hosting compartido con Passenger (no aplica a hosting solo-web/cloud sin Python)
+- `deploy/rifa-app.service` + `deploy/nginx-rifa-app.conf` - alternativa con systemd + Nginx, para un VPS *sin* Docker/Traefik
 - `requirements-vps.txt` - dependencias de produccion (incluye Gunicorn, solo funciona en Linux)
 
-## Despliegue en VPS (curiositylogic.cloud)
+## Despliegue en el VPS de curiositylogic.cloud (Docker + Traefik)
 
-CuriosityLogic.cloud confirmo que el hosting web/cloud normal no soporta apps Python y que se necesita el VPS asociado a la cuenta. Pasos para desplegar ahi via SSH:
+Este VPS ya corre **Traefik** (reverse proxy en Docker) gestionando otros servicios (n8n, orqagent) desde un `docker-compose.yml` central en `/root/docker-compose.yml`. Traefik detecta automaticamente los contenedores por sus labels y emite certificados HTTPS via Let's Encrypt. Rifa-app se agrega como un servicio mas de ese mismo compose, sin tocar los demas.
 
-1. **Conectarse por SSH** al VPS (tu proveedor te dara el usuario, IP y clave/contrasena).
-
-2. **Instalar Python y Nginx** (Ubuntu/Debian):
+1. **Clonar el repo en el servidor:**
    ```bash
-   sudo apt update
-   sudo apt install -y python3 python3-venv python3-pip nginx git
-   ```
-
-3. **Clonar el repositorio** en el servidor:
-   ```bash
-   sudo mkdir -p /var/www/rifa-app
-   sudo chown $USER:$USER /var/www/rifa-app
    git clone https://github.com/edmartin-GIT/Rifa-app.git /var/www/rifa-app
-   cd /var/www/rifa-app
    ```
 
-4. **Crear entorno virtual e instalar dependencias** (incluye Gunicorn):
+2. **Agregar el servicio `rifa-app` a `/root/docker-compose.yml`** (junto a los servicios existentes `traefik`, `n8n`, `orqagent`):
+   ```yaml
+     rifa-app:
+       build: /var/www/rifa-app
+       restart: always
+       volumes:
+         - rifa_data:/app/data
+       labels:
+         - traefik.enable=true
+         - traefik.http.routers.rifa-app.rule=Host(`rifa.curiositylogic.cloud`)
+         - traefik.http.routers.rifa-app.tls=true
+         - traefik.http.routers.rifa-app.entrypoints=web,websecure
+         - traefik.http.routers.rifa-app.tls.certresolver=mytlschallenge
+         - traefik.http.services.rifa-app.loadbalancer.server.port=8000
+   ```
+   Y agregar `rifa_data:` a la seccion `volumes:` al final del archivo (volumen para persistir `rifa.db` entre reconstrucciones del contenedor).
+
+3. **Crear el registro DNS** tipo A: `rifa.curiositylogic.cloud` -> IP del VPS (necesario para que Traefik pueda emitir el certificado TLS).
+
+4. **Levantar el nuevo servicio** (no afecta a n8n/orqagent, que siguen corriendo):
    ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements-vps.txt
-   deactivate
+   cd /root
+   docker compose up -d --build rifa-app
    ```
 
-5. **Configurar el servicio systemd** para que la app corra siempre en segundo plano y arranque con el servidor:
+5. La app queda disponible en `https://rifa.curiositylogic.cloud`. Para actualizaciones futuras:
    ```bash
-   sudo cp deploy/rifa-app.service /etc/systemd/system/rifa-app.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now rifa-app
-   sudo systemctl status rifa-app
-   ```
-   Si el usuario del servicio (`www-data` en el archivo de ejemplo) no tiene permisos de escritura en `/var/www/rifa-app` (necesarios para crear `rifa.db`), ajusta el dueno de la carpeta:
-   ```bash
-   sudo chown -R www-data:www-data /var/www/rifa-app
+   cd /var/www/rifa-app && git pull
+   cd /root && docker compose up -d --build rifa-app
    ```
 
-6. **Configurar Nginx** como proxy reverso hacia Gunicorn:
-   ```bash
-   sudo cp deploy/nginx-rifa-app.conf /etc/nginx/sites-available/rifa-app
-   sudo ln -s /etc/nginx/sites-available/rifa-app /etc/nginx/sites-enabled/
-   sudo nginx -t
-   sudo systemctl reload nginx
-   ```
-   Antes de esto, crea en tu proveedor de DNS un registro **A** para el subdominio (ej. `rifa.curiositylogic.cloud`) apuntando a la IP del VPS.
+**Importante sobre la base de datos:** dentro del contenedor, `rifa.db` vive en `/app/data/rifa.db` (variable `RIFA_DB_PATH`), respaldado por el volumen Docker `rifa_data` para que sobreviva a reconstrucciones de la imagen. Aun asi, conviene respaldar ese volumen periodicamente (`docker run --rm -v rifa_data:/data -v $(pwd):/backup alpine tar czf /backup/rifa_data_backup.tar.gz /data`).
 
-7. **Activar HTTPS** con Let's Encrypt:
-   ```bash
-   sudo apt install -y certbot python3-certbot-nginx
-   sudo certbot --nginx -d rifa.curiositylogic.cloud
-   ```
+## Despliegue alternativo en VPS sin Docker (Nginx + systemd)
 
-8. La app quedara disponible en `https://rifa.curiositylogic.cloud`. Para futuras actualizaciones de codigo:
-   ```bash
-   cd /var/www/rifa-app
-   git pull
-   source .venv/bin/activate
-   pip install -r requirements-vps.txt
-   deactivate
-   sudo systemctl restart rifa-app
-   ```
+Si en el futuro se despliega en un VPS tradicional sin Docker/Traefik, se puede usar Gunicorn + systemd + Nginx con los archivos en `deploy/`:
 
-**Importante sobre la base de datos:** SQLite guarda todo en el archivo `rifa.db` dentro de la carpeta de la app (no esta en el control de versiones por diseno). Configura respaldos periodicos de ese archivo, por ejemplo con un cron job que lo copie a otro directorio o a almacenamiento externo.
+```bash
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip nginx git
+git clone https://github.com/edmartin-GIT/Rifa-app.git /var/www/rifa-app
+cd /var/www/rifa-app
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-vps.txt
+deactivate
+sudo cp deploy/rifa-app.service /etc/systemd/system/rifa-app.service
+sudo systemctl daemon-reload && sudo systemctl enable --now rifa-app
+sudo cp deploy/nginx-rifa-app.conf /etc/nginx/sites-available/rifa-app
+sudo ln -s /etc/nginx/sites-available/rifa-app /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d rifa.curiositylogic.cloud
+```
 
 ## Configuracion
 
