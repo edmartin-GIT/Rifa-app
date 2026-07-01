@@ -27,7 +27,7 @@
         </thead>
         <tbody>
             {% for tickera, total in total_por_tickera %}
-            <tr><td>{{ tickera }}</td><td>${{ "%.2f"|format(total) }}</td></tr>
+            <tr><td data-label="Tickera Numero">{{ tickera }}</td><td data-label="Total Acumulado">${{ "%.2f"|format(total) }}</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -54,17 +54,17 @@
         <tbody>
             {% for fila in filas %}
             <tr class="{% if fila.saldo > 0 %}fila-saldo{% endif %}">
-                <td>{{ fila.tickera_numero }}</td>
-                <td>{{ fila.ticket_inicio }}</td>
-                <td>{{ fila.ticket_fin }}</td>
-                <td>{{ fila.nombre_servidor }}</td>
-                <td>{{ fila.fecha_transaccion }}</td>
-                <td>{{ fila.modalidad_pago }}</td>
-                <td>{{ fila.numero_confirmacion or "-" }}</td>
-                <td>${{ "%.2f"|format(fila.total_esperado) }}</td>
-                <td>${{ "%.2f"|format(fila.monto_pagado) }}</td>
-                <td>${{ "%.2f"|format(fila.saldo) }}</td>
-                <td class="acciones">
+                <td data-label="Tickera">{{ fila.tickera_numero }}</td>
+                <td data-label="Ticket Inicio">{{ fila.ticket_inicio }}</td>
+                <td data-label="Ticket Fin">{{ fila.ticket_fin }}</td>
+                <td data-label="Servidor">{{ fila.nombre_servidor }}</td>
+                <td data-label="Fecha">{{ fila.fecha_transaccion }}</td>
+                <td data-label="Modalidad">{{ fila.modalidad_pago }}</td>
+                <td data-label="Num. Confirmacion">{{ fila.numero_confirmacion or "-" }}</td>
+                <td data-label="Total Esperado">${{ "%.2f"|format(fila.total_esperado) }}</td>
+                <td data-label="Monto Pagado">${{ "%.2f"|format(fila.monto_pagado) }}</td>
+                <td data-label="Saldo">${{ "%.2f"|format(fila.saldo) }}</td>
+                <td class="acciones" data-label="Acciones">
                     <a href="{{ url_for('editar_transaccion', id=fila.id) }}">Editar</a>
                     <form method="post" action="{{ url_for('eliminar_transaccion', id=fila.id) }}" onsubmit="return confirm('Eliminar esta transaccion?');">
                         <button type="submit">Eliminar</button>

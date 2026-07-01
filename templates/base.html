@@ -8,12 +8,21 @@
 </head>
 <body>
     <header class="topbar">
-        <h1><a href="{{ url_for('index') }}">Control de Rifa</a></h1>
-        <nav>
-            <a href="{{ url_for('index') }}">Transacciones</a>
-            <a href="{{ url_for('nueva_transaccion') }}">Nueva Transaccion</a>
-            <a href="{{ url_for('configuracion') }}">Configuracion</a>
-            <a href="{{ url_for('exportar_excel') }}">Exportar a Excel</a>
+        <button type="button" id="view-toggle" class="view-toggle-btn" title="Cambiar vista Computador / Movil">
+            <span id="view-toggle-icon">💻</span> <span id="view-toggle-label">Vista Computador</span>
+        </button>
+
+        <div class="topbar-brand">
+            <img src="{{ url_for('static', filename='img/guadalupe.png') }}" alt="Our Lady of Guadalupe Catholic Church" class="logo logo-left">
+            <h1 class="topbar-title"><a href="{{ url_for('index') }}">EMAUS XVII<br><span>Control de RIFA</span></a></h1>
+            <img src="{{ url_for('static', filename='img/emaus.png') }}" alt="Emaus" class="logo logo-right">
+        </div>
+
+        <nav class="nav-buttons">
+            <a class="nav-btn btn-rojo" href="{{ url_for('index') }}">Transacciones</a>
+            <a class="nav-btn btn-verde" href="{{ url_for('nueva_transaccion') }}">Nueva Transaccion</a>
+            <a class="nav-btn btn-amarillo" href="{{ url_for('configuracion') }}">Configuracion</a>
+            <a class="nav-btn btn-negro" href="{{ url_for('exportar_excel') }}">Exportar a Excel</a>
         </nav>
     </header>
 
@@ -30,5 +39,30 @@
 
         {% block content %}{% endblock %}
     </main>
+
+    <script>
+        (function () {
+            const toggleBtn = document.getElementById('view-toggle');
+            const icon = document.getElementById('view-toggle-icon');
+            const label = document.getElementById('view-toggle-label');
+            const root = document.documentElement;
+
+            function aplicarVista(vista) {
+                root.classList.remove('vista-movil', 'vista-computador');
+                root.classList.add(vista === 'movil' ? 'vista-movil' : 'vista-computador');
+                icon.textContent = vista === 'movil' ? '📱' : '💻';
+                label.textContent = vista === 'movil' ? 'Vista Movil' : 'Vista Computador';
+                localStorage.setItem('rifa_vista', vista);
+            }
+
+            const vistaGuardada = localStorage.getItem('rifa_vista') || 'computador';
+            aplicarVista(vistaGuardada);
+
+            toggleBtn.addEventListener('click', function () {
+                const actual = root.classList.contains('vista-movil') ? 'movil' : 'computador';
+                aplicarVista(actual === 'movil' ? 'computador' : 'movil');
+            });
+        })();
+    </script>
 </body>
 </html>
