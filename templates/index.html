@@ -42,6 +42,7 @@
                 <th>Ticket Inicio</th>
                 <th>Ticket Fin</th>
                 <th>Servidor</th>
+                <th>Telefono</th>
                 <th>Fecha</th>
                 <th>Modalidad</th>
                 <th>Num. Confirmacion</th>
@@ -55,9 +56,10 @@
             {% for fila in filas %}
             <tr class="{% if fila.saldo > 0 %}fila-saldo{% endif %}">
                 <td data-label="Tickera">{{ fila.tickera_numero }}</td>
-                <td data-label="Ticket Inicio">{{ fila.ticket_inicio }}</td>
-                <td data-label="Ticket Fin">{{ fila.ticket_fin }}</td>
+                <td data-label="Ticket Inicio">{{ fila.ticket_inicio|ticket }}</td>
+                <td data-label="Ticket Fin">{{ fila.ticket_fin|ticket }}</td>
                 <td data-label="Servidor">{{ fila.nombre_servidor }}</td>
+                <td data-label="Telefono">{{ fila.telefono_servidor }}</td>
                 <td data-label="Fecha">{{ fila.fecha_transaccion }}</td>
                 <td data-label="Modalidad">{{ fila.modalidad_pago }}</td>
                 <td data-label="Num. Confirmacion">{{ fila.numero_confirmacion or "-" }}</td>
@@ -72,7 +74,7 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="11">No hay transacciones registradas todavia.</td></tr>
+            <tr><td colspan="12">No hay transacciones registradas todavia.</td></tr>
             {% endfor %}
         </tbody>
     </table>

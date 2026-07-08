@@ -28,6 +28,7 @@ def init_db():
             ticket_inicio INTEGER NOT NULL,
             ticket_fin INTEGER NOT NULL,
             nombre_servidor TEXT NOT NULL,
+            telefono_servidor TEXT NOT NULL DEFAULT '',
             fecha_transaccion TEXT NOT NULL,
             modalidad_pago TEXT NOT NULL CHECK(modalidad_pago IN ('CASH', 'SQUARE', 'ZELLE')),
             numero_confirmacion TEXT,
@@ -36,6 +37,11 @@ def init_db():
         );
         """
     )
+
+    columnas = {r["name"] for r in conn.execute("PRAGMA table_info(transacciones)")}
+    if "telefono_servidor" not in columnas:
+        conn.execute("ALTER TABLE transacciones ADD COLUMN telefono_servidor TEXT NOT NULL DEFAULT ''")
+
     cur = conn.execute("SELECT valor FROM configuracion WHERE clave = 'precio_tickera'")
     if cur.fetchone() is None:
         conn.execute(

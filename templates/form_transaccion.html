@@ -13,7 +13,7 @@
                 <option value="">-- Seleccione --</option>
                 {% for tk in tickeras %}
                 <option value="{{ tk.numero }}" {% if datos.tickera_numero == tk.numero %}selected{% endif %}>
-                    Tickera {{ tk.numero }} ({{ tk.ticket_inicio }}-{{ tk.ticket_fin }})
+                    Tickera {{ tk.numero }} ({{ tk.ticket_inicio|ticket }}-{{ tk.ticket_fin|ticket }})
                 </option>
                 {% endfor %}
             </select>
@@ -24,7 +24,7 @@
                 <option value="">-- Seleccione --</option>
                 {% for tk in tickeras %}
                 <option value="{{ tk.numero }}" {% if datos.tickera_numero == tk.numero %}selected{% endif %}>
-                    {{ tk.ticket_inicio }}
+                    {{ tk.ticket_inicio|ticket }}
                 </option>
                 {% endfor %}
             </select>
@@ -32,7 +32,7 @@
 
         <p class="ayuda" id="rango_preview">
             {% if datos.ticket_inicio and datos.ticket_fin %}
-                Rango de tickets: {{ datos.ticket_inicio }} - {{ datos.ticket_fin }}
+                Rango de tickets: {{ datos.ticket_inicio|ticket }} - {{ datos.ticket_fin|ticket }}
             {% else %}
                 Rango de tickets: --
             {% endif %}
@@ -46,6 +46,10 @@
             <option value="{{ s }}">
             {% endfor %}
         </datalist>
+    </label>
+
+    <label>Numero de Telefono del Servidor
+        <input type="tel" name="telefono_servidor" value="{{ datos.telefono_servidor or '' }}" required>
     </label>
 
     <label>Fecha de Transaccion
@@ -79,8 +83,12 @@
     const tickeraSelect = document.getElementById('tickera_numero');
     const ticketInicioSelect = document.getElementById('ticket_inicio_select');
     const rangoPreview = document.getElementById('rango_preview');
-    const TICKET_BASE = {{ 1000 }};
+    const TICKET_BASE = {{ 5000 }};
     const TICKET_SIZE = {{ 10 }};
+
+    function formatearTicket(numero) {
+        return String(numero).padStart(5, '0');
+    }
 
     function actualizarPreview(numero) {
         if (!numero) {
@@ -89,7 +97,7 @@
         }
         const inicio = TICKET_BASE + (numero - 1) * TICKET_SIZE;
         const fin = inicio + TICKET_SIZE - 1;
-        rangoPreview.textContent = 'Rango de tickets: ' + inicio + ' - ' + fin;
+        rangoPreview.textContent = 'Rango de tickets: ' + formatearTicket(inicio) + ' - ' + formatearTicket(fin);
     }
 
     tickeraSelect.addEventListener('change', () => {

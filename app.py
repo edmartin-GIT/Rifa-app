@@ -10,10 +10,11 @@ from db import init_db, get_conn, get_precio_tickera, set_precio_tickera
 
 app = Flask(__name__)
 app.secret_key = "rifa-control-secret"
+app.jinja_env.filters["ticket"] = lambda numero: f"{numero:05d}"
 
 MODALIDADES = ("CASH", "SQUARE", "ZELLE")
 
-TICKET_BASE = 1000
+TICKET_BASE = 5000
 TICKET_SIZE = 10
 NUM_TICKERAS = 150
 
@@ -22,6 +23,10 @@ def tickera_a_rango(numero):
     inicio = TICKET_BASE + (numero - 1) * TICKET_SIZE
     fin = inicio + TICKET_SIZE - 1
     return inicio, fin
+
+
+def formatear_ticket(numero):
+    return f"{numero:05d}"
 
 
 def ticket_inicio_a_tickera(ticket_inicio):
@@ -92,6 +97,7 @@ def obtener_servidores_conocidos():
 def validar_formulario(form, excluir_id=None):
     errores = []
     nombre_servidor = form.get("nombre_servidor", "").strip()
+    telefono_servidor = form.get("telefono_servidor", "").strip()
     fecha_transaccion = form.get("fecha_transaccion", "").strip()
     modalidad_pago = form.get("modalidad_pago", "").strip().upper()
     numero_confirmacion = form.get("numero_confirmacion", "").strip()
@@ -120,6 +126,8 @@ def validar_formulario(form, excluir_id=None):
 
     if not nombre_servidor:
         errores.append("Nombre Servidor es requerido.")
+    if not telefono_servidor:
+        errores.append("Numero de Telefono del Servidor es requerido.")
     if not fecha_transaccion:
         errores.append("Fecha de Transaccion es requerida.")
     if modalidad_pago not in MODALIDADES:
@@ -132,6 +140,7 @@ def validar_formulario(form, excluir_id=None):
         "ticket_inicio": ticket_inicio,
         "ticket_fin": ticket_fin,
         "nombre_servidor": nombre_servidor,
+        "telefono_servidor": telefono_servidor,
         "fecha_transaccion": fecha_transaccion,
         "modalidad_pago": modalidad_pago,
         "numero_confirmacion": numero_confirmacion or None,
@@ -192,14 +201,15 @@ def nueva_transaccion():
         try:
             conn.execute(
                 """INSERT INTO transacciones
-                   (tickera_numero, ticket_inicio, ticket_fin, nombre_servidor, fecha_transaccion,
+                   (tickera_numero, ticket_inicio, ticket_fin, nombre_servidor, telefono_servidor, fecha_transaccion,
                     modalidad_pago, numero_confirmacion, precio_tickera, monto_pagado)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     datos["tickera_numero"],
                     datos["ticket_inicio"],
                     datos["ticket_fin"],
                     datos["nombre_servidor"],
+                    datos["telefono_servidor"],
                     datos["fecha_transaccion"],
                     datos["modalidad_pago"],
                     datos["numero_confirmacion"],
@@ -216,7 +226,7 @@ def nueva_transaccion():
         flash("Transaccion registrada correctamente.", "success")
         return redirect(url_for("index"))
 
-    datos = {"fecha_transaccion": date.today().isoformat(), "monto_pagado": precio_tickera}
+    datos = {"fecha_transaccion": date.today().isoformat(), "monto_pagado": 0}
     return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Nueva Transaccion", precio_tickera=precio_tickera, tickeras=lista_tickeras(), servidores=obtener_servidores_conocidos())
 
 
@@ -242,7 +252,7 @@ def editar_transaccion(id):
         conn = get_conn()
         conn.execute(
             """UPDATE transacciones SET
-               tickera_numero=?, ticket_inicio=?, ticket_fin=?, nombre_servidor=?,
+               tickera_numero=?, ticket_inicio=?, ticket_fin=?, nombre_servidor=?, telefono_servidor=?,
                fecha_transaccion=?, modalidad_pago=?, numero_confirmacion=?, monto_pagado=?
                WHERE id=?""",
             (
@@ -250,6 +260,7 @@ def editar_transaccion(id):
                 datos["ticket_inicio"],
                 datos["ticket_fin"],
                 datos["nombre_servidor"],
+                datos["telefono_servidor"],
                 datos["fecha_transaccion"],
                 datos["modalidad_pago"],
                 datos["numero_confirmacion"],
@@ -300,7 +311,7 @@ def exportar_excel():
 
     encabezados = [
         "Tickera Numero", "Ticket Inicio", "Ticket Fin", "Total Tickets",
-        "Nombre Servidor", "Fecha de Transaccion", "Modalidad de Pago",
+        "Nombre Servidor", "Telefono Servidor", "Fecha de Transaccion", "Modalidad de Pago",
         "Numero de Confirmacion", "Precio por Tickera", "Total Esperado",
         "Monto Pagado", "Saldo",
     ]
@@ -314,8 +325,9 @@ def exportar_excel():
     for t in transacciones:
         total_tickets, total_esperado, saldo = calcular_totales(t)
         ws.append([
-            t["tickera_numero"], t["ticket_inicio"], t["ticket_fin"], total_tickets,
-            t["nombre_servidor"], t["fecha_transaccion"], t["modalidad_pago"],
+            t["tickera_numero"],
+            formatear_ticket(t["ticket_inicio"]), formatear_ticket(t["ticket_fin"]), total_tickets,
+            t["nombre_servidor"], t["telefono_servidor"], t["fecha_transaccion"], t["modalidad_pago"],
             t["numero_confirmacion"] or "", t["precio_tickera"], total_esperado,
             t["monto_pagado"], saldo,
         ])
