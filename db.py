@@ -30,7 +30,7 @@ def init_db():
             nombre_servidor TEXT NOT NULL,
             telefono_servidor TEXT NOT NULL DEFAULT '',
             fecha_transaccion TEXT NOT NULL,
-            modalidad_pago TEXT NOT NULL CHECK(modalidad_pago IN ('CASH', 'SQUARE', 'ZELLE')),
+            modalidad_pago TEXT NOT NULL CHECK(modalidad_pago IN ('CASH', 'SQUARE', 'ZELLE', 'POR PAGAR')),
             numero_confirmacion TEXT,
             precio_tickera REAL NOT NULL,
             monto_pagado REAL NOT NULL DEFAULT 0
@@ -41,6 +41,36 @@ def init_db():
     columnas = {r["name"] for r in conn.execute("PRAGMA table_info(transacciones)")}
     if "telefono_servidor" not in columnas:
         conn.execute("ALTER TABLE transacciones ADD COLUMN telefono_servidor TEXT NOT NULL DEFAULT ''")
+
+    esquema_actual = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'transacciones'"
+    ).fetchone()
+    if esquema_actual and "POR PAGAR" not in esquema_actual["sql"]:
+        conn.executescript(
+            """
+            CREATE TABLE transacciones_nueva (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tickera_numero INTEGER NOT NULL UNIQUE,
+                ticket_inicio INTEGER NOT NULL,
+                ticket_fin INTEGER NOT NULL,
+                nombre_servidor TEXT NOT NULL,
+                telefono_servidor TEXT NOT NULL DEFAULT '',
+                fecha_transaccion TEXT NOT NULL,
+                modalidad_pago TEXT NOT NULL CHECK(modalidad_pago IN ('CASH', 'SQUARE', 'ZELLE', 'POR PAGAR')),
+                numero_confirmacion TEXT,
+                precio_tickera REAL NOT NULL,
+                monto_pagado REAL NOT NULL DEFAULT 0
+            );
+            INSERT INTO transacciones_nueva
+                (id, tickera_numero, ticket_inicio, ticket_fin, nombre_servidor, telefono_servidor,
+                 fecha_transaccion, modalidad_pago, numero_confirmacion, precio_tickera, monto_pagado)
+            SELECT id, tickera_numero, ticket_inicio, ticket_fin, nombre_servidor, telefono_servidor,
+                   fecha_transaccion, modalidad_pago, numero_confirmacion, precio_tickera, monto_pagado
+            FROM transacciones;
+            DROP TABLE transacciones;
+            ALTER TABLE transacciones_nueva RENAME TO transacciones;
+            """
+        )
 
     cur = conn.execute("SELECT valor FROM configuracion WHERE clave = 'precio_tickera'")
     if cur.fetchone() is None:

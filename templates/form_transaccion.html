@@ -5,6 +5,7 @@
 <h2>{{ titulo }}</h2>
 
 <form method="post" class="formulario">
+    {% if editar %}
     <fieldset class="grupo-tickera">
         <legend>Tickera</legend>
 
@@ -38,6 +39,30 @@
             {% endif %}
         </p>
     </fieldset>
+    {% else %}
+    <fieldset class="grupo-tickera">
+        <legend>Tickeras</legend>
+
+        <label>Cantidad de Tickeras a Comprar
+            <input type="number" id="cantidad_tickeras" name="cantidad_tickeras" min="1" max="{{ tickeras|length }}" value="{{ datos.cantidad_tickeras or 1 }}" required>
+        </label>
+
+        <p class="ayuda">Seleccione abajo exactamente esa cantidad de tickeras ({{ tickeras|length }} disponibles).</p>
+
+        <div class="tickeras-grid" id="tickeras_grid">
+            {% for tk in tickeras %}
+            <label class="tickera-check">
+                <input type="checkbox" name="tickeras_seleccionadas" value="{{ tk.numero }}"
+                    {% if tk.numero in (datos.tickeras_seleccionadas or []) %}checked{% endif %}>
+                Tickera {{ tk.numero }} ({{ tk.ticket_inicio|ticket }}-{{ tk.ticket_fin|ticket }})
+            </label>
+            {% endfor %}
+        </div>
+
+        <p class="ayuda" id="seleccion_conteo">Seleccionadas: <span id="conteo_actual">0</span> / <span id="conteo_requerido">1</span></p>
+        <p class="ayuda" id="total_esperado">Total Esperado: $0.00</p>
+    </fieldset>
+    {% endif %}
 
     <label>Nombre Servidor
         <input type="text" name="nombre_servidor" list="lista_servidores" value="{{ datos.nombre_servidor or '' }}" required>
@@ -69,9 +94,13 @@
         <input type="text" name="numero_confirmacion" value="{{ datos.numero_confirmacion or '' }}">
     </label>
 
-    <label>Monto Pagado
-        <input type="number" step="0.01" name="monto_pagado" value="{{ datos.monto_pagado if datos.monto_pagado is not none else 0 }}" required>
+    <label>Monto Pagado {% if not editar %}(por cada Tickera seleccionada){% endif %}
+        <input type="number" step="0.01" id="monto_pagado" name="monto_pagado" value="{{ datos.monto_pagado if datos.monto_pagado is not none else 0 }}" required>
     </label>
+
+    {% if not editar %}
+    <p class="ayuda" id="total_a_registrar">Total a Registrar: $0.00</p>
+    {% endif %}
 
     <p class="ayuda">Precio por Tickera vigente: ${{ "%.2f"|format(precio_tickera) }}</p>
 
@@ -80,15 +109,18 @@
 </form>
 
 <script>
-    const tickeraSelect = document.getElementById('tickera_numero');
-    const ticketInicioSelect = document.getElementById('ticket_inicio_select');
-    const rangoPreview = document.getElementById('rango_preview');
     const TICKET_BASE = {{ 5000 }};
     const TICKET_SIZE = {{ 10 }};
+    const PRECIO_TICKERA = {{ precio_tickera }};
 
     function formatearTicket(numero) {
         return String(numero).padStart(5, '0');
     }
+
+    {% if editar %}
+    const tickeraSelect = document.getElementById('tickera_numero');
+    const ticketInicioSelect = document.getElementById('ticket_inicio_select');
+    const rangoPreview = document.getElementById('rango_preview');
 
     function actualizarPreview(numero) {
         if (!numero) {
@@ -108,6 +140,31 @@
         tickeraSelect.value = ticketInicioSelect.value;
         actualizarPreview(parseInt(ticketInicioSelect.value, 10));
     });
+    {% else %}
+    const cantidadInput = document.getElementById('cantidad_tickeras');
+    const checkboxes = Array.from(document.querySelectorAll('input[name="tickeras_seleccionadas"]'));
+    const conteoActual = document.getElementById('conteo_actual');
+    const conteoRequerido = document.getElementById('conteo_requerido');
+    const totalEsperado = document.getElementById('total_esperado');
+    const totalARegistrar = document.getElementById('total_a_registrar');
+    const montoPagadoInput = document.getElementById('monto_pagado');
+
+    function actualizarResumen() {
+        const marcadas = checkboxes.filter(c => c.checked).length;
+        const requerido = parseInt(cantidadInput.value, 10) || 0;
+        conteoActual.textContent = marcadas;
+        conteoRequerido.textContent = requerido;
+        totalEsperado.textContent = 'Total Esperado: $' + (requerido * PRECIO_TICKERA).toFixed(2);
+        const montoPorTickera = parseFloat(montoPagadoInput.value) || 0;
+        totalARegistrar.textContent = 'Total a Registrar: $' + (requerido * montoPorTickera).toFixed(2);
+        conteoActual.parentElement.style.color = (marcadas === requerido) ? '' : '#c0392b';
+    }
+
+    checkboxes.forEach(c => c.addEventListener('change', actualizarResumen));
+    cantidadInput.addEventListener('input', actualizarResumen);
+    montoPagadoInput.addEventListener('input', actualizarResumen);
+    actualizarResumen();
+    {% endif %}
 
     const select = document.getElementById('modalidad_pago');
     const campoConfirmacion = document.getElementById('campo_confirmacion');

@@ -232,3 +232,28 @@ th { background: #eef2f6; }
     color: #444;
     padding: 0 4px;
 }
+
+.tickeras-grid {
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #fafafa;
+}
+.tickera-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 400;
+    color: #333;
+    flex-direction: row !important;
+}
+.tickera-check input { width: auto; }
+
+#seleccion_conteo { font-weight: 600; }
+#total_pagar { font-weight: 600; font-size: 15px; color: #1f3a5f; }

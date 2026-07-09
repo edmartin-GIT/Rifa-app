@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.secret_key = "rifa-control-secret"
 app.jinja_env.filters["ticket"] = lambda numero: f"{numero:05d}"
 
-MODALIDADES = ("CASH", "SQUARE", "ZELLE")
+MODALIDADES = ("CASH", "SQUARE", "ZELLE", "POR PAGAR")
 
 TICKET_BASE = 5000
 TICKET_SIZE = 10
@@ -149,6 +149,74 @@ def validar_formulario(form, excluir_id=None):
     return errores, datos
 
 
+def validar_formulario_multiple(form):
+    errores = []
+    nombre_servidor = form.get("nombre_servidor", "").strip()
+    telefono_servidor = form.get("telefono_servidor", "").strip()
+    fecha_transaccion = form.get("fecha_transaccion", "").strip()
+    modalidad_pago = form.get("modalidad_pago", "").strip().upper()
+    numero_confirmacion = form.get("numero_confirmacion", "").strip()
+
+    try:
+        cantidad_tickeras = int(form.get("cantidad_tickeras", "1"))
+    except ValueError:
+        cantidad_tickeras = 0
+    if cantidad_tickeras < 1:
+        errores.append("La cantidad de tickeras debe ser al menos 1.")
+
+    tickeras_seleccionadas_raw = form.getlist("tickeras_seleccionadas")
+    tickeras_seleccionadas = []
+    for valor in tickeras_seleccionadas_raw:
+        try:
+            n = int(valor)
+        except ValueError:
+            continue
+        if 1 <= n <= NUM_TICKERAS:
+            tickeras_seleccionadas.append(n)
+
+    if len(set(tickeras_seleccionadas)) != len(tickeras_seleccionadas):
+        errores.append("Hay tickeras repetidas en la seleccion.")
+        tickeras_seleccionadas = list(dict.fromkeys(tickeras_seleccionadas))
+
+    if cantidad_tickeras >= 1 and len(tickeras_seleccionadas) != cantidad_tickeras:
+        errores.append(
+            f"Debe seleccionar exactamente {cantidad_tickeras} tickera(s); selecciono {len(tickeras_seleccionadas)}."
+        )
+
+    for n in tickeras_seleccionadas:
+        if tickera_ya_vendida(n):
+            errores.append(f"La Tickera {n} ya fue vendida. Cada tickera es unica.")
+
+    try:
+        monto_pagado_por_tickera = float(form.get("monto_pagado", "0") or 0)
+    except ValueError:
+        errores.append("El monto pagado debe ser un numero.")
+        monto_pagado_por_tickera = 0
+
+    if not nombre_servidor:
+        errores.append("Nombre Servidor es requerido.")
+    if not telefono_servidor:
+        errores.append("Numero de Telefono del Servidor es requerido.")
+    if not fecha_transaccion:
+        errores.append("Fecha de Transaccion es requerida.")
+    if modalidad_pago not in MODALIDADES:
+        errores.append("Modalidad de Pago invalida.")
+    if modalidad_pago in ("SQUARE", "ZELLE") and not numero_confirmacion:
+        errores.append(f"Numero de Confirmacion es requerido para pagos {modalidad_pago}.")
+
+    datos = {
+        "cantidad_tickeras": cantidad_tickeras,
+        "tickeras_seleccionadas": tickeras_seleccionadas,
+        "nombre_servidor": nombre_servidor,
+        "telefono_servidor": telefono_servidor,
+        "fecha_transaccion": fecha_transaccion,
+        "modalidad_pago": modalidad_pago,
+        "numero_confirmacion": numero_confirmacion or None,
+        "monto_pagado": monto_pagado_por_tickera,
+    }
+    return errores, datos
+
+
 @app.route("/")
 def index():
     precio_tickera = get_precio_tickera()
@@ -191,7 +259,7 @@ def index():
 def nueva_transaccion():
     precio_tickera = get_precio_tickera()
     if request.method == "POST":
-        errores, datos = validar_formulario(request.form)
+        errores, datos = validar_formulario_multiple(request.form)
         if errores:
             for e in errores:
                 flash(e, "error")
@@ -199,34 +267,41 @@ def nueva_transaccion():
 
         conn = get_conn()
         try:
-            conn.execute(
-                """INSERT INTO transacciones
-                   (tickera_numero, ticket_inicio, ticket_fin, nombre_servidor, telefono_servidor, fecha_transaccion,
-                    modalidad_pago, numero_confirmacion, precio_tickera, monto_pagado)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    datos["tickera_numero"],
-                    datos["ticket_inicio"],
-                    datos["ticket_fin"],
-                    datos["nombre_servidor"],
-                    datos["telefono_servidor"],
-                    datos["fecha_transaccion"],
-                    datos["modalidad_pago"],
-                    datos["numero_confirmacion"],
-                    precio_tickera,
-                    datos["monto_pagado"],
-                ),
-            )
+            for numero in datos["tickeras_seleccionadas"]:
+                ticket_inicio, ticket_fin = tickera_a_rango(numero)
+                conn.execute(
+                    """INSERT INTO transacciones
+                       (tickera_numero, ticket_inicio, ticket_fin, nombre_servidor, telefono_servidor, fecha_transaccion,
+                        modalidad_pago, numero_confirmacion, precio_tickera, monto_pagado)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        numero,
+                        ticket_inicio,
+                        ticket_fin,
+                        datos["nombre_servidor"],
+                        datos["telefono_servidor"],
+                        datos["fecha_transaccion"],
+                        datos["modalidad_pago"],
+                        datos["numero_confirmacion"],
+                        precio_tickera,
+                        datos["monto_pagado"],
+                    ),
+                )
             conn.commit()
         except sqlite3.IntegrityError:
+            conn.rollback()
             conn.close()
-            flash(f"La Tickera {datos['tickera_numero']} ya fue vendida. Cada tickera es unica.", "error")
+            flash("Una de las tickeras seleccionadas ya fue vendida. Intente de nuevo.", "error")
             return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Nueva Transaccion", precio_tickera=precio_tickera, tickeras=lista_tickeras(), servidores=obtener_servidores_conocidos())
         conn.close()
-        flash("Transaccion registrada correctamente.", "success")
+
+        if len(datos["tickeras_seleccionadas"]) == 1:
+            flash("Transaccion registrada correctamente.", "success")
+        else:
+            flash(f"{len(datos['tickeras_seleccionadas'])} tickeras registradas correctamente.", "success")
         return redirect(url_for("index"))
 
-    datos = {"fecha_transaccion": date.today().isoformat(), "monto_pagado": 0}
+    datos = {"fecha_transaccion": date.today().isoformat(), "monto_pagado": 0, "cantidad_tickeras": 1}
     return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Nueva Transaccion", precio_tickera=precio_tickera, tickeras=lista_tickeras(), servidores=obtener_servidores_conocidos())
 
 
