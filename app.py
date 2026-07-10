@@ -352,8 +352,13 @@ def editar_transaccion(id):
     return render_template("form_transaccion.html", datos=datos, modalidades=MODALIDADES, titulo="Editar Transaccion", precio_tickera=precio_tickera, editar=True, tickeras=lista_tickeras(incluir_ademas=transaccion["tickera_numero"]), servidores=obtener_servidores_conocidos())
 
 
+ADMIN_PASSWORD = "Emaus24"
+
 @app.route("/eliminar/<int:id>", methods=["POST"])
 def eliminar_transaccion(id):
+    if request.form.get("admin_password") != ADMIN_PASSWORD:
+        flash("Password de administrador incorrecto. Transaccion no eliminada.", "error")
+        return redirect(url_for("index"))
     conn = get_conn()
     conn.execute("DELETE FROM transacciones WHERE id = ?", (id,))
     conn.commit()

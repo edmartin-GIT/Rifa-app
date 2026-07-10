@@ -20,20 +20,6 @@
 </section>
 
 <section>
-    <h2>Total Acumulado por Tickera</h2>
-    <table class="tabla-resumen">
-        <thead>
-            <tr><th>Tickera Numero</th><th>Total Acumulado</th></tr>
-        </thead>
-        <tbody>
-            {% for tickera, total in total_por_tickera %}
-            <tr><td data-label="Tickera Numero">{{ tickera }}</td><td data-label="Total Acumulado">${{ "%.2f"|format(total) }}</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</section>
-
-<section>
     <h2>Transacciones</h2>
     <table class="tabla-principal">
         <thead>
@@ -68,9 +54,7 @@
                 <td data-label="Saldo">${{ "%.2f"|format(fila.saldo) }}</td>
                 <td class="acciones" data-label="Acciones">
                     <a href="{{ url_for('editar_transaccion', id=fila.id) }}">Editar</a>
-                    <form method="post" action="{{ url_for('eliminar_transaccion', id=fila.id) }}" onsubmit="return confirm('Eliminar esta transaccion?');">
-                        <button type="submit">Eliminar</button>
-                    </form>
+                    <button type="button" class="btn-eliminar" onclick="abrirModalEliminar({{ fila.id }}, '{{ fila.tickera_numero }}')">Eliminar</button>
                 </td>
             </tr>
             {% else %}
@@ -79,5 +63,53 @@
         </tbody>
     </table>
 </section>
+
+<!-- Modal eliminar con password -->
+<div id="modal-eliminar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:8px; padding:28px 32px; max-width:380px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+        <h3 style="margin:0 0 8px; color:#c0392b;">Confirmar Eliminacion</h3>
+        <p style="margin:0 0 16px; font-size:14px; color:#555;">Tickera <strong id="modal-tickera-num"></strong> sera eliminada permanentemente.</p>
+        <label style="display:flex; flex-direction:column; font-size:14px; color:#444; gap:6px; margin-bottom:16px;">
+            Password de Administrador
+            <input type="password" id="modal-password" placeholder="Password" style="padding:8px; border:1px solid #ccc; border-radius:4px; font-size:14px;">
+        </label>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button type="button" onclick="cerrarModal()" style="padding:8px 16px; border:1px solid #ccc; border-radius:4px; background:white; cursor:pointer;">Cancelar</button>
+            <button type="button" onclick="confirmarEliminar()" style="padding:8px 16px; border:none; border-radius:4px; background:#c0392b; color:white; cursor:pointer; font-weight:600;">Eliminar</button>
+        </div>
+        <form id="form-eliminar" method="post" style="display:none;">
+            <input type="hidden" name="admin_password" id="form-password-hidden">
+        </form>
+    </div>
+</div>
+
+<script>
+    let eliminarUrl = '';
+    function abrirModalEliminar(id, tickeraNom) {
+        eliminarUrl = '/eliminar/' + id;
+        document.getElementById('modal-tickera-num').textContent = tickeraNom;
+        document.getElementById('modal-password').value = '';
+        const modal = document.getElementById('modal-eliminar');
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('modal-password').focus(), 50);
+    }
+    function cerrarModal() {
+        document.getElementById('modal-eliminar').style.display = 'none';
+    }
+    function confirmarEliminar() {
+        const pw = document.getElementById('modal-password').value;
+        const form = document.getElementById('form-eliminar');
+        document.getElementById('form-password-hidden').value = pw;
+        form.action = eliminarUrl;
+        form.submit();
+    }
+    document.getElementById('modal-password').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') confirmarEliminar();
+        if (e.key === 'Escape') cerrarModal();
+    });
+    document.getElementById('modal-eliminar').addEventListener('click', function(e) {
+        if (e.target === this) cerrarModal();
+    });
+</script>
 
 {% endblock %}
