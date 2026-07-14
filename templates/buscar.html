@@ -64,6 +64,7 @@
                     <th>Monto Pagado</th>
                     <th>Saldo</th>
                     <th>Estado</th>
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -87,6 +88,9 @@
                         {% else %}
                         <span style="color:#c0392b; font-weight:600;">SALDO PENDIENTE</span>
                         {% endif %}
+                    </td>
+                    <td class="acciones" data-label="Acciones">
+                        <a href="{{ url_for('editar_transaccion', id=fila.id) }}?next={{ request.url|urlencode }}">Editar</a>
                     </td>
                 </tr>
                 {% endfor %}
