@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Buscar Servidor - Control de Rifa{% endblock %}
+{% block content %}
+
+<h2>Buscar por Servidor</h2>
+
+<form method="get" class="formulario" style="max-width:420px;">
+    <label>Nombre del Servidor
+        <input type="text" name="q" list="lista_servidores" value="{{ query or '' }}" placeholder="Escribe el nombre..." autofocus required>
+        <datalist id="lista_servidores">
+            {% for s in servidores %}
+            <option value="{{ s }}">
+            {% endfor %}
+        </datalist>
+    </label>
+    <button type="submit">Buscar</button>
+    {% if query %}
+    <a class="boton-secundario" href="{{ url_for('buscar_servidor') }}">Limpiar</a>
+    {% endif %}
+</form>
+
+{% if query %}
+    {% if filas %}
+    <section style="margin-top:28px;">
+        <h3 style="margin-bottom:12px;">
+            Resultados para: <em>{{ query }}</em>
+            <span style="font-size:14px; font-weight:400; color:#555; margin-left:10px;">{{ filas|length }} tickera(s)</span>
+        </h3>
+
+        <div class="resumen" style="margin-bottom:20px;">
+            <div class="tarjeta">
+                <h3>Total Esperado</h3>
+                <p class="monto">${{ "%.2f"|format(resumen.total_esperado) }}</p>
+            </div>
+            <div class="tarjeta">
+                <h3>Total Pagado</h3>
+                <p class="monto">${{ "%.2f"|format(resumen.total_pagado) }}</p>
+            </div>
+            <div class="tarjeta {% if resumen.saldo_total > 0 %}alerta{% endif %}">
+                <h3>Saldo Pendiente</h3>
+                <p class="monto">${{ "%.2f"|format(resumen.saldo_total) }}</p>
+            </div>
+            {% for modalidad, total in resumen.por_modalidad.items() %}
+            {% if total > 0 %}
+            <div class="tarjeta">
+                <h3>{{ modalidad }}</h3>
+                <p class="monto">${{ "%.2f"|format(total) }}</p>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Tickera</th>
+                    <th>Ticket Inicio</th>
+                    <th>Ticket Fin</th>
+                    <th>Telefono</th>
+                    <th>Fecha</th>
+                    <th>Modalidad</th>
+                    <th>Num. Confirmacion</th>
+                    <th>Total Esperado</th>
+                    <th>Monto Pagado</th>
+                    <th>Saldo</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in filas %}
+                <tr class="{% if fila.saldo > 0 %}fila-saldo{% endif %}">
+                    <td data-label="Tickera">{{ fila.tickera_numero }}</td>
+                    <td data-label="Ticket Inicio">{{ fila.ticket_inicio|ticket }}</td>
+                    <td data-label="Ticket Fin">{{ fila.ticket_fin|ticket }}</td>
+                    <td data-label="Telefono">{{ fila.telefono_servidor }}</td>
+                    <td data-label="Fecha">{{ fila.fecha_transaccion }}</td>
+                    <td data-label="Modalidad">{{ fila.modalidad_pago }}</td>
+                    <td data-label="Num. Confirmacion">{{ fila.numero_confirmacion or "-" }}</td>
+                    <td data-label="Total Esperado">${{ "%.2f"|format(fila.total_esperado) }}</td>
+                    <td data-label="Monto Pagado">${{ "%.2f"|format(fila.monto_pagado) }}</td>
+                    <td data-label="Saldo">${{ "%.2f"|format(fila.saldo) }}</td>
+                    <td data-label="Estado">
+                        {% if fila.saldo <= 0 %}
+                        <span style="color:#27ae60; font-weight:600;">PAGADO</span>
+                        {% elif fila.modalidad_pago == 'POR PAGAR' %}
+                        <span style="color:#e67e22; font-weight:600;">POR PAGAR</span>
+                        {% else %}
+                        <span style="color:#c0392b; font-weight:600;">SALDO PENDIENTE</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% else %}
+    <p style="margin-top:24px; color:#777;">No se encontraron transacciones para <strong>{{ query }}</strong>.</p>
+    {% endif %}
+{% endif %}
+
+{% endblock %}

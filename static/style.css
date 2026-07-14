@@ -88,6 +88,8 @@ body {
 .btn-verde:hover { background: #219150; }
 .btn-amarillo { background: #f1c40f; color: #222; }
 .btn-amarillo:hover { background: #d4ac0d; }
+.btn-azul { background: #2471a3; color: white; }
+.btn-azul:hover { background: #1a5276; }
 .btn-negro { background: #111111; color: white; }
 .btn-negro:hover { background: #333333; }
 

@@ -381,6 +381,32 @@ def configuracion():
     return render_template("configuracion.html", precio_tickera=get_precio_tickera())
 
 
+@app.route("/buscar")
+def buscar_servidor():
+    servidores = obtener_servidores_conocidos()
+    query = request.args.get("q", "").strip()
+    filas = []
+    resumen = {"total_esperado": 0.0, "total_pagado": 0.0, "saldo_total": 0.0, "por_modalidad": {m: 0.0 for m in MODALIDADES}}
+
+    if query:
+        conn = get_conn()
+        rows = conn.execute(
+            "SELECT * FROM transacciones WHERE nombre_servidor LIKE ? ORDER BY tickera_numero",
+            (f"%{query}%",)
+        ).fetchall()
+        conn.close()
+        for t in rows:
+            _, total_esperado, saldo = calcular_totales(t)
+            filas.append({**dict(t), "total_esperado": total_esperado, "saldo": saldo})
+            resumen["total_esperado"] += total_esperado
+            resumen["total_pagado"] += t["monto_pagado"]
+            resumen["saldo_total"] += saldo
+            resumen["por_modalidad"][t["modalidad_pago"]] += t["monto_pagado"]
+        resumen["saldo_total"] = round(resumen["saldo_total"], 2)
+
+    return render_template("buscar.html", query=query, filas=filas, resumen=resumen, servidores=servidores)
+
+
 @app.route("/exportar")
 def exportar_excel():
     transacciones = obtener_transacciones()
